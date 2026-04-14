@@ -1,19 +1,34 @@
-"""Captura de imágenes de rostros desde cámara web."""
+"""
+Captura de imágenes de rostros desde cámara web.
+"""
 import cv2
 import os
 import imutils
 import face_recognition
 
-from config import DATA_PATH, IMAGE_SIZE, MAX_IMAGES, FRAME_WIDTH
-
+from config import DATA_PATH, IMAGE_SIZE, MAX_IMAGES, FRAME_WIDTH, FACE_PADDING
 
 def get_people_list():
-    """Obtiene lista de personas registradas."""
+    """Devuelve la lista de personas registradas en DATA_PATH."""
     if not os.path.exists(DATA_PATH):
         return []
     return [name for name in os.listdir(DATA_PATH) 
             if os.path.isdir(os.path.join(DATA_PATH, name))]
 
+def _pad_bbox(top, right, bottom, left, frame_h, frame_w, padding=FACE_PADDING):
+    """
+    Amplía el bounding box con un margen relativo.
+    """
+    h = bottom - top
+    w = right - left
+    ph = int(h * padding)
+    pw = int(w * padding)
+    return (
+        max(0, top - ph),
+        min(frame_w, right + pw),
+        min(frame_h, bottom + ph),
+        max(0, left - pw),
+    )
 
 def capture_faces(face_name):
     """Captura imágenes de un rostro desde la cámara."""
@@ -23,10 +38,11 @@ def capture_faces(face_name):
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         raise RuntimeError("No se puede abrir la cámara")
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)   # Evita frames acumulados en el buffer
     
     count = 0
-    print(f"📸 Capturando para: {face_name}")
-    print(f"⌨️  Presiona ESC para terminar")
+    print(f"Capturando para: {face_name}")
+    print(f"Presiona ESC para terminar")
 
     try:
         while count < MAX_IMAGES:
@@ -36,6 +52,7 @@ def capture_faces(face_name):
 
             frame = cv2.flip(frame, 1)
             frame = imutils.resize(frame, width=FRAME_WIDTH)
+            h, w = frame.shape[:2]
 
             cv2.putText(frame, f'Capturando: {count}/{MAX_IMAGES}', (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
@@ -44,6 +61,7 @@ def capture_faces(face_name):
             face_locations = face_recognition.face_locations(rgb_frame, model='hog')
 
             for (top, right, bottom, left) in face_locations:
+                top, right, bottom, left = _pad_bbox(top, right, bottom, left, h, w)
                 cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
                 
                 face_img = frame[top:bottom, left:right]
@@ -59,7 +77,7 @@ def capture_faces(face_name):
             if cv2.waitKey(1) == 27:
                 break
 
-        print(f"✅ {count} imágenes capturadas para {face_name}")
+        print(f"{count} imágenes capturadas para {face_name}")
 
     finally:
         cap.release()
