@@ -9,9 +9,9 @@ import cv2
 from tkinter import ttk, messagebox
 
 from config import IMAGE_FRAME_SIZE
-import faceCapture
-import training
-import faceRecognition
+import capture
+import train
+import recognition
 
 
 class FaceRecognitionApp:
@@ -83,6 +83,7 @@ class FaceRecognitionApp:
         
         try:
             self.is_recognizing = True
+            self.gen = recognition.recognize()
             self._update_frame()
         except FileNotFoundError as e:
             messagebox.showerror("Error", str(e))
@@ -168,7 +169,7 @@ class FaceRecognitionApp:
         
         def validate(event=None):
             name = entry.get().strip()
-            existing = faceCapture.faces()
+            existing = capture.get_people_list()
             
             if not name:
                 status_label.config(text="Nombre vacío", foreground="red")
@@ -189,7 +190,7 @@ class FaceRecognitionApp:
         
         ttk.Label(parent, text="Rostros registrados:").pack(pady=5)
         
-        faces = faceCapture.faces()
+        faces = capture.get_people_list()
         if not faces:
             ttk.Label(parent, text="No hay rostros registrados", foreground="red").pack(pady=5)
             return
@@ -218,8 +219,8 @@ class FaceRecognitionApp:
         
         def task():
             try:
-                faceCapture.capture_faces(self.selected_name)
-                training.train_recognizer()
+                capture.capture_faces(self.selected_name)
+                train.train_recognizer()
                 messagebox.showinfo("Éxito", "Rostro capturado y modelo entrenado")
             except Exception as e:
                 messagebox.showerror("Error", f"Error: {str(e)}")
