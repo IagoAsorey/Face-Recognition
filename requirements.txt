@@ -1,5 +1,30 @@
-opencv-python==4.8.1.78
+# ==============================================================================
+# VISIÓN POR COMPUTADORA
+# ==============================================================================
+
+opencv-python==4.8.1.78     # Procesamiento de imágenes y video en tiempo real
+face_recognition>=1.3.0     # Detección de rostros y extracción de embeddings faciales
+
+
+# ==============================================================================
+# PROCESAMIENTO NUMÉRICO
+# ==============================================================================
+
+# Operaciones numéricas y arrays multidimensionales
 numpy==1.24.3
-Pillow==10.0.0
-face_recognition>=1.3.0
+
+
+# ==============================================================================
+# APRENDIZAJE AUTOMÁTICO Y CLASIFICACIÓN
+# ==============================================================================
+
+# Machine learning: KNN, normalización, preprocesamiento
 scikit-learn>=1.3.0
+
+
+# ==============================================================================
+# INTERFAZ GRÁFICA
+# ==============================================================================
+
+# Manipulación de imágenes PIL para tkinter
+Pillow==10.0.0

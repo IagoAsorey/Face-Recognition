@@ -1,6 +1,10 @@
 """
 Interfaz gráfica para el sistema de reconocimiento facial.
-Permite capturar nuevos rostros, entrenar el modelo y realizar reconocimiento en tiempo real.
+
+Permite:
+- Iniciar reconocimiento facial en tiempo real
+- Capturar imágenes de nuevos rostros para entrenar
+- Gestionar personas registradas
 """
 import threading
 import tkinter as tk
@@ -14,8 +18,9 @@ import capture
 import train
 import recognition
 
+
 class FaceRecognitionApp:
-    """Aplicación GUI para reconocimiento facial."""
+    """Aplicación GUI principal para reconocimiento facial."""
 
     def __init__(self, root: tk.Tk):
         self.root = root
@@ -24,17 +29,16 @@ class FaceRecognitionApp:
 
         self.selected_name: str | None = None
         self.is_recognizing = False
-        self.gen = None
+        self.recognition_generator = None
 
         self._setup_ui()
 
-    # ------------------------------------------------------------------ UI
-
     def _setup_ui(self):
+        """Configura la interfaz gráfica."""
         main_frame = ttk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # ── Área de video ──────────────────────────────────────────────
+        # Área de video principal
         self.image_frame = tk.Frame(
             main_frame,
             width=IMAGE_FRAME_SIZE[0],
@@ -43,39 +47,43 @@ class FaceRecognitionApp:
         )
         self.image_frame.pack(pady=10)
         self.image_frame.pack_propagate(False)
-
         self._show_placeholder()
 
-        # ── Botones ────────────────────────────────────────────────────
-        btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(pady=15)
+        # Panel de botones principales
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(pady=15)
 
         self.btn_start = ttk.Button(
-            btn_frame, text="Iniciar Reconocimiento",
+            button_frame, 
+            text="Iniciar Reconocimiento",
             command=self.start_recognition
         )
         self.btn_start.pack(side=tk.LEFT, padx=5)
 
         self.btn_stop = ttk.Button(
-            btn_frame, text="Detener",
+            button_frame, 
+            text="Detener",
             command=self.stop_recognition,
             state=tk.DISABLED
         )
         self.btn_stop.pack(side=tk.LEFT, padx=5)
 
         ttk.Button(
-            btn_frame, text="Agregar Rostro",
-            command=self._add_face_window
+            button_frame, 
+            text="Agregar Rostro",
+            command=self._open_add_face_dialog
         ).pack(side=tk.LEFT, padx=5)
 
         ttk.Button(
-            btn_frame, text="Salir",
+            button_frame, 
+            text="Salir",
             command=self._on_close
         ).pack(side=tk.LEFT, padx=5)
 
     def _show_placeholder(self):
-        for w in self.image_frame.winfo_children():
-            w.destroy()
+        """Muestra mensaje placeholder cuando no hay video activo."""
+        for widget in self.image_frame.winfo_children():
+            widget.destroy()
         ttk.Label(
             self.image_frame,
             text="El video aparecerá aquí",
@@ -83,176 +91,201 @@ class FaceRecognitionApp:
             background="gray"
         ).place(relx=0.5, rely=0.5, anchor=tk.CENTER)
 
-    # ------------------------------------------------------------------ Reconocimiento
-
     def start_recognition(self):
+        """Inicia el generador de reconocimiento y actualiza frames."""
         if self.is_recognizing:
             return
         try:
-            self.gen = recognition.recognize()
+            self.recognition_generator = recognition.recognize()
             self.is_recognizing = True
             self.btn_start.config(state=tk.DISABLED)
             self.btn_stop.config(state=tk.NORMAL)
             self._update_frame()
-        except FileNotFoundError as e:
-            messagebox.showerror("Error", str(e))
-        except Exception as e:
-            messagebox.showerror("Error", f"Error inesperado: {e}")
+        except FileNotFoundError as error:
+            messagebox.showerror("Error", str(error))
+        except Exception as error:
+            messagebox.showerror("Error", f"Error inesperado: {error}")
 
     def stop_recognition(self):
+        """Detiene el reconocimiento y libera recursos."""
         self.is_recognizing = False
         self.btn_start.config(state=tk.NORMAL)
         self.btn_stop.config(state=tk.DISABLED)
-        if self.gen:
-            self.gen.close()    # Dispara finally en recognize() → libera cámara y hilo
-            self.gen = None
+        if self.recognition_generator:
+            self.recognition_generator.close()
+            self.recognition_generator = None
         self._show_placeholder()
 
     def _update_frame(self):
-        """Callback periódico que obtiene el siguiente frame del generador."""
+        """Callback periódico que obtiene y visualiza el siguiente frame."""
         if not self.is_recognizing:
             return
         try:
-            frame = next(self.gen)
+            frame = next(self.recognition_generator)
             frame = cv2.resize(frame, IMAGE_FRAME_SIZE)
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            tk_img = ImageTk.PhotoImage(Image.fromarray(rgb))
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+            # Convertir a imagen PIL y luego a PhotoImage para tkinter
+            pil_image = Image.fromarray(rgb_frame)
+            tk_image = ImageTk.PhotoImage(pil_image)
 
-            for w in self.image_frame.winfo_children():
-                w.destroy()
-            lbl = ttk.Label(self.image_frame, image=tk_img)
-            lbl.image = tk_img
-            lbl.pack(fill=tk.BOTH, expand=True)
+            # Limpiar y actualizar frame
+            for widget in self.image_frame.winfo_children():
+                widget.destroy()
+            
+            label = ttk.Label(self.image_frame, image=tk_image)
+            label.image = tk_image  # Mantener referencia
+            label.pack(fill=tk.BOTH, expand=True)
 
             self.root.after(10, self._update_frame)
         except StopIteration:
             self.stop_recognition()
 
-    # ------------------------------------------------------------------ Añadir rostro
+    def _open_add_face_dialog(self):
+        """Abre la ventana de diálogo para agregar nuevos rostros."""
+        dialog_window = tk.Toplevel(self.root)
+        dialog_window.title("Agregar Rostro")
+        dialog_window.resizable(False, False)
 
-    def _add_face_window(self):
-        win = tk.Toplevel(self.root)
-        win.title("Agregar Rostro")
-        win.resizable(False, False)
+        # Panel de opciones de modo
+        mode_frame = ttk.Frame(dialog_window)
+        mode_frame.pack(pady=10)
 
-        # Opciones de modo
-        opt_frame = ttk.Frame(win)
-        opt_frame.pack(pady=10)
-
-        input_frame = ttk.Frame(win)
+        input_frame = ttk.Frame(dialog_window)
         input_frame.pack(pady=10, fill=tk.BOTH, expand=True, padx=20)
 
         ttk.Button(
-            opt_frame, text="Nuevo Rostro",
-            command=lambda: self._new_face_mode(input_frame)
+            mode_frame, 
+            text="Nuevo Rostro",
+            command=lambda: self._setup_new_face_mode(input_frame)
         ).pack(side=tk.LEFT, padx=5)
 
         ttk.Button(
-            opt_frame, text="Seleccionar Existente",
-            command=lambda: self._select_face_mode(input_frame)
+            mode_frame, 
+            text="Seleccionar Existente",
+            command=lambda: self._setup_select_face_mode(input_frame)
         ).pack(side=tk.LEFT, padx=5)
 
-        # Acciones
-        act_frame = ttk.Frame(win)
-        act_frame.pack(pady=10)
+        # Panel de acciones
+        action_frame = ttk.Frame(dialog_window)
+        action_frame.pack(pady=10)
 
         ttk.Button(
-            act_frame, text="Capturar y Entrenar",
-            command=lambda: self._capture_and_train(win)
+            action_frame, 
+            text="Capturar y Entrenar",
+            command=lambda: self._capture_and_train_model(dialog_window)
         ).pack(side=tk.LEFT, padx=5)
 
         ttk.Button(
-            act_frame, text="Cancelar",
-            command=win.destroy
+            action_frame, 
+            text="Cancelar",
+            command=dialog_window.destroy
         ).pack(side=tk.LEFT, padx=5)
 
-    def _new_face_mode(self, parent: ttk.Frame):
-        for w in parent.winfo_children():
-            w.destroy()
+    def _setup_new_face_mode(self, parent_frame: ttk.Frame):
+        """Configura UI para capturar un rostro nuevo."""
+        # Limpiar frame
+        for widget in parent_frame.winfo_children():
+            widget.destroy()
 
-        ttk.Label(parent, text="Nombre de la persona:").pack(pady=5)
-        entry = ttk.Entry(parent)
-        entry.pack(pady=5)
-        status = ttk.Label(parent, text="")
-        status.pack(pady=5)
+        ttk.Label(parent_frame, text="Nombre de la persona:").pack(pady=5)
+        name_entry = ttk.Entry(parent_frame)
+        name_entry.pack(pady=5)
+        status_label = ttk.Label(parent_frame, text="")
+        status_label.pack(pady=5)
 
-        def validate(_event=None):
-            name = entry.get().strip()
+        def validate_name(_event=None):
+            name = name_entry.get().strip()
             if not name:
-                status.config(text="Nombre vacío", foreground="red")
+                status_label.config(text="Nombre vacío", foreground="red")
                 self.selected_name = None
             elif name in capture.get_people_list():
-                status.config(text="Ya existe — se añadirán imágenes", foreground="orange")
+                status_label.config(text="Ya existe — se añadirán imágenes", foreground="orange")
                 self.selected_name = name
             else:
-                status.config(text="✓ Válido", foreground="green")
+                status_label.config(text="Valido", foreground="green")
                 self.selected_name = name
 
-        entry.bind("<KeyRelease>", validate)
+        name_entry.bind("<KeyRelease>", validate_name)
 
-    def _select_face_mode(self, parent: ttk.Frame):
-        for w in parent.winfo_children():
-            w.destroy()
+    def _setup_select_face_mode(self, parent_frame: ttk.Frame):
+        """Configura UI para seleccionar un rostro existente."""
+        # Limpiar frame
+        for widget in parent_frame.winfo_children():
+            widget.destroy()
 
-        ttk.Label(parent, text="Rostros registrados:").pack(pady=5)
-        faces = capture.get_people_list()
-        if not faces:
-            ttk.Label(parent, text="No hay rostros registrados",
-                      foreground="red").pack(pady=5)
+        ttk.Label(parent_frame, text="Rostros registrados:").pack(pady=5)
+        existing_faces = capture.get_people_list()
+        
+        if not existing_faces:
+            ttk.Label(
+                parent_frame, 
+                text="No hay rostros registrados",
+                foreground="red"
+            ).pack(pady=5)
             return
 
-        lb = tk.Listbox(parent, height=5, width=24)
-        for f in faces:
-            lb.insert(tk.END, f)
-        lb.pack(pady=5)
+        # Listbox de rostros
+        faces_listbox = tk.Listbox(parent_frame, height=5, width=24)
+        for face_name in existing_faces:
+            faces_listbox.insert(tk.END, face_name)
+        faces_listbox.pack(pady=5)
 
-        status = ttk.Label(parent, text="")
-        status.pack(pady=5)
+        status_label = ttk.Label(parent_frame, text="")
+        status_label.pack(pady=5)
 
-        def on_select(_event=None):
-            sel = lb.curselection()
-            if sel:
-                self.selected_name = lb.get(sel[0])
-                status.config(text=f"✓ {self.selected_name}", foreground="green")
+        def on_selection_changed(_event=None):
+            selection = faces_listbox.curselection()
+            if selection:
+                self.selected_name = faces_listbox.get(selection[0])
+                status_label.config(
+                    text=f"{self.selected_name}", 
+                    foreground="green"
+                )
 
-        lb.bind("<<ListboxSelect>>", on_select)
+        faces_listbox.bind("<<ListboxSelect>>", on_selection_changed)
 
-    def _capture_and_train(self, win: tk.Toplevel):
+    def _capture_and_train_model(self, dialog_window: tk.Toplevel):
+        """Ejecuta captura de imágenes y entrenamiento en thread separado."""
         if not self.selected_name:
-            messagebox.showwarning("Advertencia",
-                                   "Por favor selecciona o ingresa un nombre")
+            messagebox.showwarning(
+                "Advertencia", "Por favor selecciona o ingresa un nombre"
+            )
             return
 
-        name = self.selected_name
-        win.destroy()
+        selected_person = self.selected_name
+        dialog_window.destroy()
 
         def task():
+            """Tarea de fondo para captura y entrenamiento."""
             try:
-                capture.capture_faces(name)
+                capture.capture_faces(selected_person)
                 train.train_recognizer()
-                # ← Tkinter no es thread-safe: siempre via root.after()
                 self.root.after(0, lambda: messagebox.showinfo(
-                    "Éxito", f"Rostro de '{name}' capturado y modelo entrenado ✅"))
-            except Exception as e:
-                err = str(e)
+                    "Éxito", 
+                    f"Rostro de '{selected_person}' capturado y modelo entrenado (OK)"
+                ))
+            except Exception as error:
+                error_message = str(error)
                 self.root.after(0, lambda: messagebox.showerror(
-                    "Error", f"Error durante captura/entrenamiento:\n{err}"))
+                    "Error", 
+                    f"Error durante captura/entrenamiento:\n{error_message}"
+                ))
 
-        threading.Thread(target=task, daemon=True).start()
-
-    # ------------------------------------------------------------------ Cierre
+        # Ejecutar en thread daemon para no bloquear UI
+        background_thread = threading.Thread(target=task, daemon=True)
+        background_thread.start()
 
     def _on_close(self):
-        """Libera recursos antes de cerrar."""
+        """Libera recursos antes de cerrar la aplicación."""
         self.is_recognizing = False
-        if self.gen:
-            self.gen.close()
+        if self.recognition_generator:
+            self.recognition_generator.close()
         self.root.destroy()
 
 
-# --------------------------------------------------------------------------- #
-
 def main():
+    """Punto de entrada principal de la aplicación."""
     root = tk.Tk()
     FaceRecognitionApp(root)
     root.mainloop()

@@ -1,202 +1,92 @@
-# 🎯 Face Recognition System
+# Sistema de Reconocimiento Facial en Tiempo Real
 
-Sistema completo de reconocimiento facial en tiempo real usando OpenCV y redes neuronales convolucionales (DNN). Captura, entrena y reconoce rostros mediante una interfaz gráfica intuitiva.
+Sistema de reconocimiento facial en **tiempo real** con arquitectura multi-thread, detección HOG, extracción de características preentrenadas e interfaz gráfica en Tkinter.
 
-## ✨ Características
+## Requisitos
 
-- ✅ **Captura de rostros** en tiempo real desde webcam
-- ✅ **Detección de rostros** usando modelo DNN pre-entrenado (SSD)
-- ✅ **Entrenamiento automático** del modelo FisherFace
-- ✅ **Reconocimiento en tiempo real** con confianza mostrada
-- ✅ **Interfaz gráfica** fácil de usar (Tkinter)
-- ✅ **Modular y optimizado** - código limpio y reutilizable
+- **Python:** 3.8+
+- **Webcam:** Funcional
+- **Dependencias:** Ver `requirements.txt`
 
-## 🛠️ Requisitos
+## Instalación
 
-- Python 3.8+
-- Webcam/Cámara web
-- 500 MB de espacio libre
-
-## 📦 Instalación
-
-### 1. Clonar el repositorio
 ```bash
-git clone https://github.com/usuario/Face-Recognition.git
-cd Face-Recognition
-```
-
-### 2. Crear entorno virtual (opcional pero recomendado)
-```bash
+# Crear entorno virtual
 python -m venv venv
-```
 
-**Activar en Windows:**
-```bash
+# Windows
 venv\Scripts\activate
-```
 
-**Activar en Linux/Mac:**
-```bash
+# Linux/Mac
 source venv/bin/activate
-```
 
-### 3. Instalar dependencias
-```bash
+# Instalar dependencias
 pip install -r requirements.txt
 ```
 
-## 🚀 Uso
+## Uso
 
-### Iniciar la aplicación
 ```bash
 python main.py
 ```
 
-### Workflow típico
+### Flujo básico
 
-#### 1. **Agregar un nuevo rostro**
-- Click en **"Agregar Rostro"**
-- Selecciona **"Nuevo Rostro"** o **"Seleccionar Existente"**
-- Ingresa el nombre o selecciona de la lista
-- Click en **"Capturar y Entrenar"**
-- La cámara capturará automáticamente 500 imágenes
-- El modelo se entrenará automáticamente (presiona ESC para cancelar captura)
+1. **Capturar rostro:** Click en "Agregar Rostro" -> "Nuevo Rostro" -> Ingresa nombre -> "Capturar y Entrenar"
+   - Se capturan ~100 imágenes automáticamente (ESC para cancelar)
+   - El modelo se entrena automáticamente
 
-#### 2. **Iniciar reconocimiento**
-- Click en **"Iniciar Reconocimiento"**
-- La cámara mostrará detección y reconocimiento en tiempo real
-- Los rostros conocidos se mostrarán en **verde** con su nombre
-- Los rostros desconocidos se mostrarán en **rojo**
+2. **Reconocimiento:** Click en "Iniciar Reconocimiento"
+   - Cuadros verdes = rostros reconocidos
+   - Cuadros rojos = rostros desconocidos
 
-## 📁 Estructura del Proyecto
+3. **Agregar más personas:** Repetir paso 1
 
-```
-Face-Recognition/
-├── main.py                          # Interfaz gráfica (GUI)
-├── config.py                        # Configuración centralizada
-├── utils.py                         # Funciones utilitarias comunes
-├── faceCapture.py                   # Captura de imágenes de rostros
-├── training.py                      # Entrenamiento del modelo
-├── faceRecognition.py               # Reconocimiento en tiempo real
-├── requirements.txt                 # Dependencias del proyecto
-├── .gitignore                       # Archivos ignorados por git
-├── DNN/                             # Modelos pre-entrenados
-│   ├── deploy.prototxt              # Arquitectura de la red neuronal
-│   └── res10_300x300_ssd_iter_140000.caffemodel  # Pesos pre-entrenados
-└── Data/                            # Datos de entrenamiento (generado)
-    └── NombrePersona/               # Una carpeta por persona
-        └── rostro_0.jpg, rostro_1.jpg, ...
-```
+## Configuración
 
-## ⚙️ Configuración
-
-Edita `config.py` para personalizar:
+Editar `config.py` para ajustar:
 
 ```python
-IMAGE_SIZE = (150, 150)         # Tamaño de imágenes de entrenamiento
-MAX_IMAGES = 500                # Imágenes a capturar por persona
-THRESHOLD = 50                  # Umbral de confianza (menor = más strict)
-RECOGNITION_INTERVAL = 0.5      # Segundos entre reconocimientos
-FRAME_WIDTH = 640               # Ancho de frame capturado
+MAX_IMAGES = 100              # Imágenes por persona
+DISTANCE_THRESHOLD = 0.8      # Umbral de similitud
+DETECTION_SCALE = 0.5         # Escala de detección (reducir para más velocidad)
+FRAME_SKIP = 5                # Procesa 1 de cada N frames
 ```
 
-## 🧠 Modelos Utilizados
+## Estructura del Proyecto
 
-### Detección: SSD (Single Shot MultiBox Detector)
-- **Modelo:** ResNet-10 (300x300)
-- **Ventajas:** Rápido y preciso, entrenado en WIDER FACE
-- **Ubicación:** `DNN/`
-- **Regeneración:** Descargable desde repositorios oficiales
-
-### Reconocimiento: FisherFace
-- **Algoritmo:** PCA + LDA (Linear Discriminant Analysis)
-- **Ventajas:** Robusto, rápido, poco requerimiento computacional
-- **Modelo:** Se regenera automáticamente con `training.train_recognizer()`
-- **Fallback:** Si no está disponible FisherFace, usa LBPHFaceRecognizer
-
-## 🔧 Módulos
-
-### `config.py`
-Configuración centralizada del proyecto. Todas las rutas y parámetros en un solo lugar.
-
-### `utils.py` ⭐
-Funciones compartidas para evitar duplicación:
-- `load_dnn_model()` - Carga el modelo de detección
-- `init_camera()` - Inicializa la webcam
-- `create_face_recognizer()` - Crea el reconocedor (con fallback)
-
-### `faceCapture.py`
-Captura imágenes de rostros:
-- `faces()` - Lista personas registradas
-- `capture_faces(name)` - Captura 500 imágenes por persona
-
-### `training.py`
-Entrena el modelo:
-- `load_images()` - Carga imágenes de Data/
-- `train_recognizer()` - Entrena y guarda modelo
-
-### `faceRecognition.py`
-Reconocimiento en vivo:
-- `process_frame()` - Detecta y reconoce rostros en un frame
-- `main()` - Generador de frames procesados
-
-### `main.py`
-Interfaz gráfica con clase `FaceRecognitionApp` que gestiona todo.
-
-## 📊 Archivos Generados
-
-| Archivo | Descripción | ¿Se regenera? |
-|---------|-------------|--------------|
-| `modeloFisherFace.xml` | Modelo entrenado | ✅ Sí (al entrenar) |
-| `Data/` | Imágenes de entrenamiento | ✅ Sí (al capturar) |
-| `__pycache__/` | Caché de Python | ✅ Sí (automático) |
-
-## 🐛 Solución de Problemas
-
-### **Error: "cv2.face no disponible"**
-```bash
-pip install opencv-contrib-python
+```
+├── main.py           # GUI (Tkinter)
+├── config.py         # Configuración
+├── recognition.py    # Motor de reconocimiento + threads
+├── capture.py        # Captura de imágenes
+├── train.py          # Entrenamiento del modelo
+├── requirements.txt  # Dependencias
+├── .gitignore        # Archivos a ignorar
+└── Data/             # Datos y modelo entrenado (generado)
 ```
 
-### **Error: "Cámara no se abre"**
-- Verifica que la cámara no esté en uso por otra aplicación
-- Intenta cambiar el ID de cámara en `utils.py`: `init_camera(camera_id=1)`
+## Solución de Problemas
 
-### **Reconocimiento impreciso**
-- Captura más imágenes (aumenta `MAX_IMAGES` en config.py)
-- Mejora la iluminación
-- Reduce `THRESHOLD` para ser más estricto
+**Cámara no abre:** `cap = cv2.VideoCapture(1)` en main.py (cambiar ID)
 
-### **El programa se congela**
-- Presiona ESC durante la captura para cancelar
-- Las operaciones de entrenamiento pueden tomar tiempo con muchas imágenes
+**Reconocimiento impreciso:** Aumenta `MAX_IMAGES` en config.py (200-300)
 
-## 🚀 Mejoras Futuras
+**Video lento:** Aumenta `DETECTION_SCALE` a 0.75 o `FRAME_SKIP` a 10
 
-- [ ] Soporte para múltiples modelos (VGGFace, FaceNet)
-- [ ] Base de datos para almacenar resultados
-- [ ] WebAPI REST para integración remota
-- [ ] Soporte GPU CUDA
-- [ ] Enmascaramiento de privacidad post-reconocimiento
-- [ ] Estadísticas y reportes
+**Falsos positivos:** Reduce `DISTANCE_THRESHOLD` a 0.6
 
-## 📝 Licencia
+## Tecnologías
 
-Este proyecto es de código abierto. Úsalo libremente en tus proyectos.
+- OpenCV: Procesamiento de video
+- face_recognition: Detección HOG y embeddings
+- scikit-learn: Clasificación KNN
+- Tkinter: Interfaz gráfica
 
-## 🤝 Contribuciones
+## Referencias
 
-Las contribuciones son bienvenidas! Por favor:
-1. Fork el repositorio
-2. Crea una rama con tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
+- [face_recognition](https://github.com/ageitgey/face_recognition)
+- [OpenCV](https://docs.opencv.org/)
+- [scikit-learn](https://scikit-learn.org/)
 
-## 📧 Contacto
 
-Para preguntas o sugerencias, abre un issue en GitHub.
-
----
-
-**Hecho con ❤️ | Desarrollado con OpenCV y Python**
