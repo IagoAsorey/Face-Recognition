@@ -3,7 +3,6 @@ Captura de imágenes de rostros desde cámara web.
 """
 import cv2
 import os
-import imutils
 import face_recognition
 
 from config import DATA_PATH, IMAGE_SIZE, MAX_IMAGES, FRAME_WIDTH, FACE_PADDING
@@ -51,7 +50,8 @@ def capture_faces(face_name):
                 break
 
             frame = cv2.flip(frame, 1)
-            frame = imutils.resize(frame, width=FRAME_WIDTH)
+            scale = FRAME_WIDTH / frame.shape[1]
+            frame = cv2.resize(frame, (FRAME_WIDTH, int(frame.shape[0] * scale)))
             h, w = frame.shape[:2]
 
             cv2.putText(frame, f'Capturando: {count}/{MAX_IMAGES}', (10, 30),

@@ -114,7 +114,6 @@ class FaceRecognitionApp:
             return
         try:
             frame = next(self.gen)
-            # Redimensionar al tamaño del panel si la cámara tiene otra resolución
             frame = cv2.resize(frame, IMAGE_FRAME_SIZE)
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             tk_img = ImageTk.PhotoImage(Image.fromarray(rgb))
@@ -122,10 +121,10 @@ class FaceRecognitionApp:
             for w in self.image_frame.winfo_children():
                 w.destroy()
             lbl = ttk.Label(self.image_frame, image=tk_img)
-            lbl.image = tk_img   # Evitar que el GC elimine la imagen
+            lbl.image = tk_img
             lbl.pack(fill=tk.BOTH, expand=True)
 
-            self.root.after(10, self._update_frame)   # ~100 fps tope de GUI
+            self.root.after(10, self._update_frame)
         except StopIteration:
             self.stop_recognition()
 
