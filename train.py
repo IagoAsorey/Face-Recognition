@@ -45,7 +45,7 @@ def train_recognizer():
     embeddings_normalized = normalizer.fit_transform(embeddings)
     
     n_neighbors = min(3, len(embeddings))
-    knn = KNeighborsClassifier(n_neighbors=3, metric='euclidean')
+    knn = KNeighborsClassifier(n_neighbors=n_neighbors, metric='euclidean')
     knn.fit(embeddings_normalized, labels)
     
     os.makedirs(os.path.dirname(EMBEDDINGS_PATH), exist_ok=True)

@@ -9,9 +9,51 @@ import face_recognition
 
 from config import EMBEDDINGS_PATH, DISTANCE_THRESHOLD, DETECTION_SCALE, FRAME_SKIP
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Hilo de cámara
+# ─────────────────────────────────────────────────────────────────────────────
+
+class CameraThread(threading.Thread):
+    """Lee frames de la cámara en bucle y guarda siempre el más reciente."""
+
+    def __init__(self, cap: cv2.VideoCapture):
+        super().__init__(daemon=True)
+        self._cap = cap
+        self._frame = None
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+
+    def run(self):
+        while not self._stop.is_set():
+            ret, frame = self._cap.read()
+            if not ret:
+                break
+            frame = cv2.flip(frame, 1)
+            with self._lock:
+                self._frame = frame
+
+    def get_frame(self):
+        """Devuelve una copia del frame más reciente, o None si aún no hay ninguno."""
+        with self._lock:
+            return self._frame.copy() if self._frame is not None else None
+
+    def stop(self):
+        self._stop.set()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Hilo de detección
+# ─────────────────────────────────────────────────────────────────────────────
+
 class FaceDetectionThread(threading.Thread):
     """
-    Hilo daemon que recibe frames, detecta caras, calcula encodings y clasifica con KNN.
+    Recibe frames, detecta caras (downscaled), calcula encodings (full-res)
+    y clasifica con KNN.
+
+    get_results() → list | None
+      - list  : hay un resultado NUEVO disponible (puede ser [] si no se detectó cara)
+      - None  : no hay resultado nuevo desde la última consulta (usa el caché)
     """
 
     def __init__(self, knn, normalizer, people_list):
@@ -21,30 +63,36 @@ class FaceDetectionThread(threading.Thread):
         self._people = people_list
 
         self._input_frame = None
-        self._results: list = []          # [(loc, name, color, dist), ...]
+        self._results: list = []
+        self._new_result = False      # ← flag: hay resultado sin consumir
         self._lock = threading.Lock()
         self._new_frame = threading.Event()
         self._stop = threading.Event()
 
-    # ------------------------------------------------------------------ API
+    # ── API pública ────────────────────────────────────────────────────────
 
     def submit(self, frame):
-        """Envía un frame para procesar (no bloqueante)."""
+        """Envía un frame para procesar (no bloqueante, descarta el anterior)."""
         with self._lock:
             self._input_frame = frame.copy()
         self._new_frame.set()
 
     def get_results(self):
-        """Devuelve los últimos resultados calculados (no bloqueante)."""
+        """
+        Devuelve los resultados solo cuando el hilo acaba de producir uno nuevo.
+        Entre detecciones devuelve None para que el caller mantenga su caché.
+        """
         with self._lock:
-            return list(self._results)
+            if self._new_result:
+                self._new_result = False
+                return list(self._results)
+        return None
 
     def stop(self):
-        """Señaliza al hilo para que termine."""
         self._stop.set()
-        self._new_frame.set()   # Desbloquea la espera si está dormido
+        self._new_frame.set()
 
-    # ------------------------------------------------------------------ Loop
+    # ── Bucle interno ──────────────────────────────────────────────────────
 
     def run(self):
         while not self._stop.is_set():
@@ -58,7 +106,7 @@ class FaceDetectionThread(threading.Thread):
             if frame is None:
                 continue
 
-            # 1. Escalar frame → detección rápida
+            # 1. Detección en frame reducido (rápido)
             small = cv2.resize(frame, (0, 0),
                                fx=DETECTION_SCALE, fy=DETECTION_SCALE)
             rgb_small = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
@@ -67,6 +115,7 @@ class FaceDetectionThread(threading.Thread):
             if not locations_small:
                 with self._lock:
                     self._results = []
+                    self._new_result = True
                 continue
 
             # 2. Escalar coordenadas al tamaño original
@@ -76,7 +125,7 @@ class FaceDetectionThread(threading.Thread):
                 for (t, r, b, l) in locations_small
             ]
 
-            # 3. Encodings sobre el frame a resolución completa (más preciso)
+            # 3. Encodings sobre frame full-res (más precisos que en el reducido)
             rgb_full = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             encodings = face_recognition.face_encodings(rgb_full, locations_full)
 
@@ -99,13 +148,18 @@ class FaceDetectionThread(threading.Thread):
 
             with self._lock:
                 self._results = results
+                self._new_result = True
 
 
-# --------------------------------------------------------------------------- #
+# ─────────────────────────────────────────────────────────────────────────────
+# Generador principal
+# ─────────────────────────────────────────────────────────────────────────────
 
 def recognize():
     """
-    Generador que produce frames BGR con las anotaciones pintadas.
+    Generador que produce frames BGR anotados.
+    Uso:  gen = recognize(); frame = next(gen)
+    Al llamar gen.close() o salir del bucle libera cámara e hilos.
     """
     if not os.path.isfile(EMBEDDINGS_PATH):
         raise FileNotFoundError(f'Modelo no encontrado: {EMBEDDINGS_PATH}')
@@ -116,10 +170,13 @@ def recognize():
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         raise RuntimeError("No se puede abrir la cámara")
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)    # Siempre el frame más reciente
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
+    cam_thread = CameraThread(cap)
     detector = FaceDetectionThread(data['knn'], data['normalizer'], data['people'])
+    cam_thread.start()
     detector.start()
+
     print(f"Personas cargadas: {data['people']}")
     print("Iniciando reconocimiento...")
 
@@ -128,26 +185,26 @@ def recognize():
 
     try:
         while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
+            # Frame más reciente sin bloquear el hilo principal
+            frame = cam_thread.get_frame()
+            if frame is None:
+                continue
 
-            frame = cv2.flip(frame, 1)
             frame_count += 1
 
-            # Enviar al hilo de detección cada FRAME_SKIP frames
+            # Enviar al detector solo cada FRAME_SKIP frames
             if frame_count % FRAME_SKIP == 0:
                 detector.submit(frame)
 
-            # Actualizar caché solo si el hilo tiene nuevos resultados
+            # Solo actualizar caché cuando el detector produce resultado NUEVO
+            # → entre medias las cajas permanecen (sin parpadeo)
             new = detector.get_results()
             if new is not None:
                 cached_results = new
 
-            # Dibujar resultados cacheados sobre el frame actual
+            # Dibujar caché sobre el frame actual
             h, w = frame.shape[:2]
             for (top, right, bottom, left), name, color, dist in cached_results:
-                # Clamp por si el frame cambió de tamaño
                 top    = max(0, min(top, h))
                 bottom = max(0, min(bottom, h))
                 left   = max(0, min(left, w))
@@ -164,4 +221,5 @@ def recognize():
 
     finally:
         detector.stop()
+        cam_thread.stop()
         cap.release()

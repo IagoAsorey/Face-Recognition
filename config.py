@@ -13,7 +13,7 @@ MAX_IMAGES = 100            # Mínimo suficiente para face-recognition
 FACE_PADDING = 0.2          # Padding relativo alrededor del crop → mejora encodings
 
 # ===== RECONOCIMIENTO =====
-DISTANCE_THRESHOLD = 0.6    # Umbral de similitud: valores menores = más restrictivo
+DISTANCE_THRESHOLD = 0.8    # Umbral de similitud: valores menores = más restrictivo
 
 # ===== RENDIMIENTO (ajusta según tu CPU) =====
 DETECTION_SCALE = 0.5   # Escala el frame antes de detectar: 0.5 = 4× menos píxeles
