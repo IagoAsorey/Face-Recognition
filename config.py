@@ -16,8 +16,8 @@ FACE_PADDING = 0.2          # Padding relativo alrededor del crop → mejora enc
 DISTANCE_THRESHOLD = 0.8    # Umbral de similitud: valores menores = más restrictivo
 
 # ===== RENDIMIENTO (ajusta según tu CPU) =====
-DETECTION_SCALE = 0.5   # Escala el frame antes de detectar: 0.5 = 4× menos píxeles
-FRAME_SKIP = 3          # Lanza detección 1 de cada N frames (el resto usa caché)
+DETECTION_SCALE = 0.25  # Escala el frame antes de detectar: 0.5 = 4× menos píxeles
+FRAME_SKIP = 6          # Lanza detección 1 de cada N frames (el resto usa caché)
 
 # ===== GUI =====
 IMAGE_FRAME_SIZE = (640, 480)   # Tamaño del frame mostrado en la interfaz
